@@ -171,13 +171,13 @@ export default function Dashboard({ email }: { email: string }) {
                 <button
                   key={it.key}
                   className="sh-nav-btn"
+                  title={it.sub}
                   aria-current={active === it.key ? 'page' : undefined}
                   onClick={() => setActive(it.key)}
                 >
                   <span className="sh-nav-ico">{it.code}</span>
                   <span className="sh-nav-text">
                     <span className="sh-nav-title">{it.label}</span>
-                    <span className="sh-nav-hint">{it.sub}</span>
                   </span>
                 </button>
               ))}
@@ -199,8 +199,6 @@ export default function Dashboard({ email }: { email: string }) {
             </div>
           </div>
           <div className="sh-header-right">
-            <span className="sh-stat">KOL <b>{fmt(all.kols.data.length)}</b></span>
-            <span className="sh-stat">Views <b>{fmt(model.views)}</b></span>
             <button className="sh-btn sh-btn-outline" onClick={() => setShowPersonal(!showPersonal)}>
               {showPersonal ? 'Sembunyikan data pribadi' : 'Tampilkan data pribadi'}
             </button>
@@ -212,19 +210,18 @@ export default function Dashboard({ email }: { email: string }) {
             <>
               {noSales && (
                 <div className="note">
-                  GMV dan orders masih 0. Tabel atribusi penjualan (kol_order_attributions, kol_commissions, kol_manual_sales) belum terisi,
-                  sehingga angka penjualan affiliate belum bisa dihitung.
+                  Data penjualan affiliate belum terhubung, sehingga GMV dan orders belum bisa dihitung.
                 </div>
               )}
               <div className="dl-grid dl-g4">
                 <Kpi label="Total KOL" value={fmt(all.kols.data.length)} />
                 <Kpi label="KOL aktif" value={fmt(kpiActive)} />
                 <Kpi label="KOL prospect" value={fmt(kpiProspect)} />
-                <Kpi label="Referral aktif" value={fmt(all.referralActive.value)} hint={all.referralActive.error ?? 'kol_referral_rules'} />
-                <Kpi label="Attribution order" value={fmt(all.attributions.value)} hint={all.attributions.error ?? 'kol_order_attributions'} />
+                <Kpi label="Referral aktif" value={fmt(all.referralActive.value)} hint={all.referralActive.error ? 'Data belum tersedia' : undefined} />
+                <Kpi label="Attribution order" value={fmt(all.attributions.value)} hint={all.attributions.error ? 'Data belum tersedia' : undefined} />
                 <Kpi label="Total views" value={fmt(model.views)} />
-                <Kpi label="GMV tercatat" value={fmtRp(model.gmv)} />
-                <Kpi label="Orders tercatat" value={fmt(model.orders)} />
+                <Kpi label="GMV tercatat" value={noSales ? '—' : fmtRp(model.gmv)} hint={noSales ? 'Belum terhubung' : undefined} />
+                <Kpi label="Orders tercatat" value={noSales ? '—' : fmt(model.orders)} hint={noSales ? 'Belum terhubung' : undefined} />
               </div>
               <div className="dl-grid dl-g2">
                 <Panel title="Followers per KOL" sub="10 teratas">
@@ -403,7 +400,7 @@ export default function Dashboard({ email }: { email: string }) {
             <>
               <div className="dl-grid dl-g4">
                 <Kpi label="Percakapan" value={fmt(all.chats.data.length)} />
-                <Kpi label="Pesan total" value={fmt(all.messages.value)} hint={all.messages.error ?? 'isi pesan tidak ditampilkan'} />
+                <Kpi label="Pesan total" value={fmt(all.messages.value)} hint={all.messages.error ? 'Data belum tersedia' : undefined} />
                 <Kpi label="Belum dibaca" value={fmt(model.unread)} />
                 <Kpi label="Aktivitas terakhir" value={fmtDateTime(model.lastChat)} />
               </div>
@@ -414,7 +411,7 @@ export default function Dashboard({ email }: { email: string }) {
 
           {active === 'sistem' && (
             <div className="dl-grid dl-g4">
-              <Kpi label="Target terdaftar" value={fmt(all.targets.value)} hint={all.targets.error ?? 'kol_targets'} />
+              <Kpi label="Target terdaftar" value={fmt(all.targets.value)} hint={all.targets.error ? 'Data belum tersedia' : undefined} />
               {[...model.alertCount.entries()].map(([k, n]) => (
                 <Kpi key={k} label={`Alert ${k}`} value={fmt(n)} />
               ))}
