@@ -203,10 +203,17 @@ function Donut({ active, total }: { active: number; total: number }) {
   );
 }
 
+const short = (v: number) => {
+  if (v >= 1e9) return `${v / 1e9} M`;
+  if (v >= 1e6) return `${v / 1e6} jt`;
+  if (v >= 1e3) return `${v / 1e3} rb`;
+  return String(v);
+};
+
 function Scatter({ rows, onPick }: { rows: Row[]; onPick: (id: string) => void }) {
   const pts = rows.filter((r) => r.followers && r.views);
   if (pts.length === 0) return <div className="empty">Belum ada KOL yang punya followers dan views.</div>;
-  const W = 640, H = 320, pl = 64, pr = 24, pt = 18, pb = 44;
+  const W = 640, H = 340, pl = 96, pr = 150, pt = 18, pb = 48;
   const xs = pts.map((r) => r.followers as number);
   const ys = pts.map((r) => r.views as number);
   const x0 = Math.floor(Math.log10(Math.min(...xs)));
@@ -222,22 +229,27 @@ function Scatter({ rows, onPick }: { rows: Row[]; onPick: (id: string) => void }
       {ticksX.map((t) => (
         <g key={`x${t}`}>
           <line x1={sx(t)} x2={sx(t)} y1={pt} y2={H - pb} stroke="#EDEEF2" strokeDasharray="3 4" />
-          <text x={sx(t)} y={H - pb + 20} textAnchor="middle" fontSize="11" fill="#6B7180">{n0(t)}</text>
+          <text x={sx(t)} y={H - pb + 20} textAnchor="middle" fontSize="11" fill="#6B7180">{short(t)}</text>
         </g>
       ))}
       {ticksY.map((t) => (
         <g key={`y${t}`}>
           <line x1={pl} x2={W - pr} y1={sy(t)} y2={sy(t)} stroke="#EDEEF2" strokeDasharray="3 4" />
-          <text x={pl - 10} y={sy(t) + 4} textAnchor="end" fontSize="11" fill="#6B7180">{n0(t)}</text>
+          <text x={pl - 10} y={sy(t) + 4} textAnchor="end" fontSize="11" fill="#6B7180">{short(t)}</text>
         </g>
       ))}
       <text x={(pl + W - pr) / 2} y={H - 6} textAnchor="middle" fontSize="12" fontWeight="600" fill="#6B7180">Followers (skala log)</text>
-      <text x={16} y={(pt + H - pb) / 2} transform={`rotate(-90 16 ${(pt + H - pb) / 2})`} textAnchor="middle" fontSize="12" fontWeight="600" fill="#6B7180">Views (skala log)</text>
+      <text x={22} y={(pt + H - pb) / 2} transform={`rotate(-90 22 ${(pt + H - pb) / 2})`} textAnchor="middle" fontSize="12" fontWeight="600" fill="#6B7180">Views (skala log)</text>
       {pts.map((r) => (
         <g key={r.id} onClick={() => onPick(r.id)} style={{ cursor: 'pointer' }}>
           <circle cx={sx(r.followers as number)} cy={sy(r.views as number)} r="8" fill="#7A2E4A" fillOpacity=".16" />
           <circle cx={sx(r.followers as number)} cy={sy(r.views as number)} r="5" fill="#7A2E4A" stroke="#fff" strokeWidth="2" />
-          <text x={sx(r.followers as number) + 12} y={sy(r.views as number) + 4} fontSize="12" fontWeight="600" fill="#2A2E36">{r.name}</text>
+          <text
+            x={sx(r.followers as number) + (sx(r.followers as number) > W - pr - 150 ? -12 : 12)}
+            y={sy(r.views as number) + 4}
+            textAnchor={sx(r.followers as number) > W - pr - 150 ? 'end' : 'start'}
+            fontSize="12" fontWeight="600" fill="#2A2E36"
+          >{r.name}</text>
           <title>{`${r.name}: ${n0(r.followers)} followers, ${n0(r.views)} views`}</title>
         </g>
       ))}
