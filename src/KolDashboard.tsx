@@ -153,7 +153,7 @@ type Model = ReturnType<typeof derive>;
 type ViewKey =
   | 'ringkasan' | 'kol' | 'konten' | 'sosial'
   | 'kampanye' | 'seeding' | 'produk'
-  | 'pembayaran' | 'pipeline' | 'dokumen' | 'chat' | 'sistem';
+  | 'pembayaran' | 'pipeline' | 'dokumen' | 'chat' | 'sistem' | 'sumber';
 
 const NAV: { group: string; items: { key: ViewKey; label: string }[] }[] = [
   { group: 'Overview', items: [{ key: 'ringkasan', label: 'Ringkasan' }] },
@@ -174,6 +174,7 @@ const NAV: { group: string; items: { key: ViewKey; label: string }[] }[] = [
     { key: 'chat', label: 'Chat WhatsApp' },
   ] },
   { group: 'Sistem', items: [{ key: 'sistem', label: 'Sistem & target' }] },
+  { group: 'Data sumber', items: [{ key: 'sumber', label: 'Semua tabel' }] },
 ];
 
 /* ---------- ikon sidebar ---------- */
@@ -191,6 +192,7 @@ function Icon({ k }: { k: ViewKey }) {
     case 'pipeline': return <svg {...common}><path d="M3 4h18l-7 9v6l-4 2v-8z" /></svg>;
     case 'dokumen': return <svg {...common}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h8" /></svg>;
     case 'chat': return <svg {...common}><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-4-1L3 21l1.2-4.2A8.4 8.4 0 1 1 21 11.5z" /></svg>;
+    case 'sumber': return <svg {...common}><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" /><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></svg>;
     case 'sistem': return <svg {...common}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.5" /></svg>;
   }
 }
@@ -385,6 +387,110 @@ function exportCsv(rows: Row[]) {
   a.download = 'performa-kol.csv';
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/* ---------- data sumber (semua kolom tabel asal) ---------- */
+type Source = { key: string; label: string; select: string; pii?: string[]; note?: string; limit?: number };
+
+const SOURCES: Source[] = [
+  { key: 'kols', label: 'KOL (kols)', select: 'id,full_name,stage_name,tier,category,status,domicile,source,whatsapp,email,recipient_name,pic_user_id,preferred_channel,referral_code,creator_code,next_action,next_action_pic,next_action_deadline,notes,merged_into_kol_id,archived_at,archive_reason,shipping_city,shipping_province,shipping_postal_code,created_at,updated_at', pii: ['whatsapp', 'email', 'recipient_name'], note: 'Hanya KOL yang belum diarsipkan.' },
+  { key: 'kol_contents', label: 'Konten (kol_contents)', select: 'id,kol_id,campaign_id,platform,content_type,url,title,cta,publish_date,deadline,status,views,likes,comments,shares,saves,reach,engagement_rate,gmv,orders,metrics_source,metrics_updated_at,metrics_fetched_at,metrics_error,notes,created_at,updated_at', note: 'Metrik diambil dari metrics_source.' },
+  { key: 'kol_content_metric_snapshots', label: 'Snapshot metrik konten', select: 'id,content_id,kol_id,platform,views,likes,comments,shares,saves,reach,engagement_rate,gmv,orders,source_updated_at,recorded_at', note: 'Riwayat metrik konten per pengambilan.' },
+  { key: 'kol_social_accounts', label: 'Akun sosial (kol_social_accounts)', select: 'id,kol_id,platform,username,url,followers,engagement_rate,avg_views,avg_likes,avg_comments,marketplace_creator_id,marketplace_verification_status,metrics_updated_at,metrics_fetched_at,created_at,updated_at' },
+  { key: 'kol_social_metric_snapshots', label: 'Snapshot akun sosial', select: 'id,social_account_id,kol_id,platform,followers,engagement_rate,avg_views,avg_likes,avg_comments,source_updated_at,recorded_at', note: 'Riwayat followers per pengambilan.' },
+  { key: 'kol_campaigns', label: 'Kampanye (kol_campaigns)', select: 'id,name,product,objective,status,start_date,end_date,target_revenue,target_orders,target_content,target_creators,budget,fee,commission_rate,deliverables,notes,created_at,updated_at' },
+  { key: 'kol_seedings', label: 'Seeding (kol_seedings)', select: 'id,kol_id,campaign_id,product_name,quantity,product_value,total_value,status,content_deadline,order_ref,courier,tracking_no,items,recipient,address,shipping_recipient_name,shipping_phone,shipping_address,shipping_city,shipping_province,shipping_postal_code,notes,status_changed_at,created_at,updated_at', pii: ['recipient', 'address', 'shipping_recipient_name', 'shipping_phone', 'shipping_address'] },
+  { key: 'kol_products', label: 'Produk (kol_products)', select: 'id,sku,name,category,description,normal_value,promo_value,stock,weight_grams,status,created_at,updated_at' },
+  { key: 'kol_payments', label: 'Pembayaran (kol_payments)', select: 'id,kol_id,payment_type,amount,paid_at,method,reference,status,requested_at,approved_at,reject_reason,notes,created_at,updated_at' },
+  { key: 'kol_commissions', label: 'Komisi (kol_commissions)', select: 'id,kol_id,campaign_id,order_ref,source,period_start,period_end,base_amount,rate,amount,adjustment,adjustment_reason,status,void_reason,refund_review_required,refund_review_reason,created_at,updated_at' },
+  { key: 'kol_order_attributions', label: 'Atribusi order (kol_order_attributions)', select: 'id,order_ref,kol_id,campaign_id,content_id,source,gmv,gross_gmv,refund_gmv,qty,paid_at,status,source_status,source_revision,commission_amount,commission_currency,attribution_decision,attribution_reason,attribution_locked,created_at' },
+  { key: 'kol_manual_sales', label: 'Penjualan manual (kol_manual_sales)', select: 'id,order_ref,kol_id,campaign_id,content_id,platform,source,gross_amount,cancelled_amount,refund_amount,net_amount,qty,sold_at,status,note,created_at,updated_at' },
+  { key: 'kol_referral_rules', label: 'Aturan referral (kol_referral_rules)', select: 'id,kol_id,campaign_id,referral_code,desired_active,status,created_at,updated_at' },
+  { key: 'kol_status_history', label: 'Riwayat status (kol_status_history)', select: 'id,kol_id,from_status,to_status,at,pic,transition_type,reason_code,note' },
+  { key: 'kol_actions', label: 'Aksi (kol_actions)', select: 'id,kol_id,campaign_id,gap_type,title,action,pic,deadline,status,source,is_current,created_at,resolved_at' },
+  { key: 'kol_documents', label: 'Dokumen (kol_documents)', select: 'id,kol_id,doc_type,title,file_name,mime_type,size_bytes,valid_from,expires_at,platform,deliverable,rate_amount,currency,negotiable,notes,created_at,updated_at', note: 'Path file tidak ditampilkan.' },
+  { key: 'kol_targets', label: 'Target (kol_targets)', select: 'id,period_type,period_date,metric,target_value,campaign_id,created_at' },
+  { key: 'kol_import_logs', label: 'Log impor (kol_import_logs)', select: 'id,source,file_name,total_rows,imported,unmatched,skipped,status,error,created_at' },
+  { key: 'kol_cron_runs', label: 'Log cron (kol_cron_runs)', select: 'id,job_name,status,started_at,completed_at,detected_count,created_count,error_message,control_date,control_slot' },
+  { key: 'kol_operational_alerts', label: 'Alert operasional (kol_operational_alerts)', select: 'id,source,severity,alert_status,error_code,route,occurrence_count,first_seen_at,last_seen_at,resolved_at', note: 'Dibatasi di database. Menunggu persetujuan fungsi ringkasan.' },
+  { key: 'wa_conversations', label: 'Percakapan WhatsApp (wa_conversations)', select: 'id,kol_id,display_name,contact_name,phone_number,unread_count,last_message,last_message_at,labels,created_at,updated_at', pii: ['display_name', 'contact_name', 'phone_number', 'last_message'] },
+  { key: 'wa_messages', label: 'Pesan WhatsApp (wa_messages)', select: 'id,conversation_id,kol_id,direction,body,media_type,delivery_status,delivery_attempts,delivery_error,sent_at,created_at', pii: ['body'], limit: 500, note: 'Menampilkan 500 pesan terbaru.' },
+];
+
+function SourceView() {
+  const pii = useContext(PiiCtx);
+  const [key, setKey] = useState(SOURCES[0].key);
+  const src = SOURCES.find((s) => s.key === key) ?? SOURCES[0];
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setErr(null);
+    supabase
+      .from(src.key)
+      .select(src.select, { count: 'exact' })
+      .limit(src.limit ?? 500)
+      .then(({ data, error, count: c }) => {
+        if (!alive) return;
+        if (error) {
+          setErr(friendly(error.message));
+          setRows([]);
+          setTotal(null);
+        } else {
+          setRows((data ?? []) as unknown as Record<string, unknown>[]);
+          setTotal(c ?? null);
+        }
+        setLoading(false);
+      });
+    return () => { alive = false; };
+  }, [src]);
+
+  const cols = src.select.split(',').map((c) => c.trim()).filter(Boolean);
+  const piiCols = new Set(src.pii ?? []);
+
+  const cell = (v: unknown, col: string): string => {
+    if (piiCols.has(col)) return pii(v == null ? null : String(v));
+    if (v == null || v === '') return '—';
+    if (typeof v === 'boolean') return v ? 'Ya' : 'Tidak';
+    if (typeof v === 'number') return n0(v);
+    if (typeof v === 'object') return JSON.stringify(v).slice(0, 140);
+    const s = String(v);
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return fmtDateTime(s);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return fmtDate(s);
+    return s;
+  };
+
+  return (
+    <>
+      <Head kicker="Data sumber" title="Semua tabel sumber" sub="Setiap kolom tabel asal ditampilkan dengan nama aslinya." />
+      <div className="kpis">
+        <Kpi label="Tabel" value={src.key} sub={src.label} />
+        <Kpi label="Baris" value={err ? '—' : n0(total)} sub={err ?? src.note ?? undefined} />
+        <Kpi label="Kolom" value={n0(cols.length)} sub={`${n0(piiCols.size)} kolom data pribadi`} />
+      </div>
+      <Panel title={src.label} sub={src.note ?? 'Semua kolom dari tabel ini'}>
+        <div className="toolbar">
+          <select className="field" value={key} onChange={(e) => setKey(e.target.value)} aria-label="Pilih tabel sumber" style={{ minWidth: 340 }}>
+            {SOURCES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+          </select>
+          {loading && <span className="count">Memuat…</span>}
+        </div>
+        {err ? (
+          <div className="empty">{err}</div>
+        ) : (
+          <DataTable<Record<string, unknown>>
+            rows={rows}
+            empty="Belum ada baris di tabel ini."
+            cols={cols.map((c) => ({ label: c, render: (r) => cell(r[c], c) }))}
+          />
+        )}
+      </Panel>
+    </>
+  );
 }
 
 /* ---------- halaman ---------- */
@@ -1011,6 +1117,7 @@ export default function KolDashboard({ email }: { email: string }) {
       case 'dokumen': content = <DocsView live={live} m={model} />; break;
       case 'chat': content = <ChatView live={live} />; break;
       case 'sistem': content = <SystemView live={live} m={model} />; break;
+      case 'sumber': content = <SourceView />; break;
     }
   }
 
