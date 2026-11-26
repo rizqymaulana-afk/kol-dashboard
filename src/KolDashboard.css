@@ -326,3 +326,7 @@ tbody tr:hover { background: #FBF7F9; }
   font: inherit; font-weight: 700; cursor: pointer; margin-top: 4px;
 }
 .login-card button[type="submit"]:disabled { opacity: .6; cursor: default; }
+
+/* ---------- logo ---------- */
+img.logo { background: #fff; padding: 5px; object-fit: contain; box-shadow: var(--shadow); }
+.login-card .brand img.logo { display: inline-block; vertical-align: middle; margin-right: 12px; width: 44px; height: 44px; }

@@ -1023,9 +1023,9 @@ export default function KolDashboard({ email }: { email: string }) {
 
         <aside className="side">
           <div className="brand">
-            <span className="logo">SP</span>
+            <img className="logo" src="/logo-scentplus.png" alt="Scentplus" />
             <div>
-              <b>ScentPlus</b>
+              <b>Scentplus</b>
               <span>KOL &amp; Affiliate Live</span>
             </div>
           </div>

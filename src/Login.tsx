@@ -19,7 +19,7 @@ export default function Login() {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={onSubmit}>
-        <div className="brand">ScentPlus<small>KOL &amp; Affiliate Dashboard</small></div>
+        <div className="brand"><img className="logo" src="/logo-scentplus.png" alt="" />Scentplus<small>KOL &amp; Affiliate Dashboard</small></div>
         <p className="muted">Masuk dengan akun KOL Anda</p>
         <label>
           Email
