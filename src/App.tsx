@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import Login from './Login';
-import Dashboard from './Dashboard';
-import './App.css';
+import KolDashboard from './KolDashboard';
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -14,7 +13,7 @@ export default function App() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  if (session === undefined) return <div className="page"><p className="muted">Memuat…</p></div>;
+  if (session === undefined) return <div className="loading">Memuat…</div>;
   if (!session) return <Login />;
-  return <Dashboard email={session.user.email ?? ''} />;
+  return <KolDashboard email={session.user.email ?? ''} />;
 }
