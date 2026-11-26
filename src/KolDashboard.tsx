@@ -4,7 +4,7 @@ import './KolDashboard.css';
 
 /* ---------- tipe data ---------- */
 type Kol = { id: string; full_name: string; stage_name: string | null; tier: string | null; category: string | null; status: string; domicile: string | null; source: string | null; whatsapp: string | null; email: string | null };
-type Content = { kol_id: string; platform: string | null; views: number | null; gmv: number | null; orders: number | null };
+type Content = { kol_id: string; platform: string | null; views: number | null; gmv: number | null; orders: number | null; publish_date: string | null };
 type Campaign = { id: string; name: string; product: string | null; status: string; start_date: string | null; end_date: string | null; target_revenue: number | null; target_orders: number | null; budget: number | null; commission_rate: number | null };
 type Social = { kol_id: string; platform: string; username: string | null; followers: number | null; engagement_rate: number | null; avg_views: number | null };
 type Payment = { kol_id: string; payment_type: string; amount: number | null; paid_at: string | null; status: string; requested_at: string | null };
@@ -52,19 +52,22 @@ const TONE: Record<string, string> = {
 const PiiCtx = createContext<(v: string | null | undefined) => string>((v) => v || '—');
 
 /* ---------- pengambilan data ---------- */
+const friendly = (m: string) =>
+  /permission denied/i.test(m) ? 'Akun ini belum punya akses ke sumber data ini.' : m;
+
 async function list<T>(p: PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>): Promise<Res<T>> {
   const r = await p;
-  return { data: (r.data ?? []) as T[], error: r.error ? r.error.message : null };
+  return { data: (r.data ?? []) as T[], error: r.error ? friendly(r.error.message) : null };
 }
 async function count(p: PromiseLike<{ count: number | null; error: { message: string } | null }>): Promise<Cnt> {
   const r = await p;
-  return { value: r.count ?? null, error: r.error ? r.error.message : null };
+  return { value: r.count ?? null, error: r.error ? friendly(r.error.message) : null };
 }
 
 async function loadLive(): Promise<Live> {
   const [kols, contents, campaigns, social, payments, seedings, products, statusEvents, actions, alerts, docs, chats, referralActive, attributions, targets, messages, recent] = await Promise.all([
     list<Kol>(supabase.from('kols').select('id,full_name,stage_name,tier,category,status,domicile,source,whatsapp,email').is('archived_at', null).order('created_at', { ascending: false })),
-    list<Content>(supabase.from('kol_contents').select('kol_id,platform,views,gmv,orders')),
+    list<Content>(supabase.from('kol_contents').select('kol_id,platform,views,gmv,orders,publish_date')),
     list<Campaign>(supabase.from('kol_campaigns').select('id,name,product,status,start_date,end_date,target_revenue,target_orders,budget,commission_rate').order('start_date', { ascending: true })),
     list<Social>(supabase.from('kol_social_accounts').select('kol_id,platform,username,followers,engagement_rate,avg_views')),
     list<Payment>(supabase.from('kol_payments').select('kol_id,payment_type,amount,paid_at,status,requested_at').order('created_at', { ascending: false })),
@@ -129,7 +132,20 @@ function derive(l: Live) {
   const statusCount = new Map<string, number>();
   for (const k of l.kols.data) statusCount.set(k.status, (statusCount.get(k.status) ?? 0) + 1);
 
-  return { names, nameOf, rows, totalViews, gmv, orders, followersTop, top, topEff, statusCount };
+  const byMonth = new Map<string, { views: number; posts: number }>();
+  for (const c of l.contents.data) {
+    if (!c.publish_date) continue;
+    const key = c.publish_date.slice(0, 7);
+    const a = byMonth.get(key) ?? { views: 0, posts: 0 };
+    a.views += Number(c.views ?? 0);
+    a.posts += 1;
+    byMonth.set(key, a);
+  }
+  const monthly = [...byMonth.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, v]) => ({ key, ...v }));
+
+  return { names, nameOf, rows, totalViews, gmv, orders, followersTop, top, topEff, statusCount, monthly };
 }
 type Model = ReturnType<typeof derive>;
 
@@ -251,6 +267,51 @@ function Scatter({ rows, onPick }: { rows: Row[]; onPick: (id: string) => void }
             fontSize="12" fontWeight="600" fill="#2A2E36"
           >{r.name}</text>
           <title>{`${r.name}: ${n0(r.followers)} followers, ${n0(r.views)} views`}</title>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+/* ---------- grafik garis ---------- */
+const monthLabel = (key: string) => {
+  const [y, mo] = key.split('-').map(Number);
+  return new Date(y, mo - 1, 1).toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
+};
+
+function LineChart({ points, format }: { points: { label: string; value: number }[]; format: (v: number) => string }) {
+  if (points.length < 2) return <div className="empty">Belum cukup data untuk tren. Dibutuhkan minimal 2 bulan publikasi.</div>;
+  const W = 640, H = 280, pl = 72, pr = 24, pt = 16, pb = 40;
+  const max = Math.max(...points.map((p) => p.value)) || 1;
+  const e = 10 ** Math.floor(Math.log10(max));
+  const yMax = Math.ceil(max / e) * e;
+  const n = points.length;
+  const sx = (i: number) => pl + (i * (W - pl - pr)) / (n - 1);
+  const sy = (v: number) => H - pb - (v / yMax) * (H - pb - pt);
+  const line = points.map((p, i) => `${i ? 'L' : 'M'}${sx(i).toFixed(1)},${sy(p.value).toFixed(1)}`).join(' ');
+  const area = `${line} L${sx(n - 1).toFixed(1)},${H - pb} L${sx(0).toFixed(1)},${H - pb} Z`;
+  const grid = [0, 0.25, 0.5, 0.75, 1].map((f) => f * yMax);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Grafik tren views per bulan">
+      <defs>
+        <linearGradient id="lineFill" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="#7A2E4A" stopOpacity=".22" />
+          <stop offset="1" stopColor="#7A2E4A" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {grid.map((g) => (
+        <g key={g}>
+          <line x1={pl} x2={W - pr} y1={sy(g)} y2={sy(g)} stroke="#EDEEF2" strokeDasharray="3 4" />
+          <text x={pl - 10} y={sy(g) + 4} textAnchor="end" fontSize="11" fill="#6B7180">{format(g)}</text>
+        </g>
+      ))}
+      <path d={area} fill="url(#lineFill)" />
+      <path d={line} fill="none" stroke="#7A2E4A" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+      {points.map((p, i) => (
+        <g key={p.label + i}>
+          <circle cx={sx(i)} cy={sy(p.value)} r="5" fill="#fff" stroke="#7A2E4A" strokeWidth="2.5" />
+          <text x={sx(i)} y={H - pb + 20} textAnchor="middle" fontSize="11" fill="#6B7180">{p.label}</text>
+          <title>{`${p.label}: ${n0(p.value)} views`}</title>
         </g>
       ))}
     </svg>
@@ -437,6 +498,10 @@ function RingkasanView({ live, m, onPick }: { live: Live; m: Model; onPick: (id:
           </div>
         </Panel>
       </div>
+
+      <Panel title="Tren views per bulan" sub="berdasarkan tanggal publikasi konten">
+        <LineChart points={m.monthly.map((x) => ({ label: monthLabel(x.key), value: x.views }))} format={short} />
+      </Panel>
 
       <div className="grid eq">
         <Panel title="Followers vs views" sub="Klik titik untuk detail KOL · skala log">
@@ -889,9 +954,9 @@ function SystemView({ live, m }: { live: Live; m: Model }) {
       <Head kicker="Sistem" title="Sistem & target" sub="Target yang sudah diatur dan alert operasional." />
       <div className="kpis">
         <Kpi label="Target terdaftar" value={n0(live.targets.value)} sub={live.targets.error ? 'Data belum tersedia' : undefined} />
-        <Kpi label="Alert" value={n0(live.alerts.data.length)} />
-        <Kpi label="Alert belum selesai" value={n0(live.alerts.data.filter((a) => a.alert_status !== 'resolved').length)} />
-        <Kpi label="Alert kritis" value={n0(live.alerts.data.filter((a) => a.severity === 'critical' || a.severity === 'high').length)} />
+        <Kpi label="Alert" value={live.alerts.error ? '—' : n0(live.alerts.data.length)} sub={live.alerts.error ? 'Tidak ada akses' : undefined} />
+        <Kpi label="Alert belum selesai" value={live.alerts.error ? '—' : n0(live.alerts.data.filter((a) => a.alert_status !== 'resolved').length)} />
+        <Kpi label="Alert kritis" value={live.alerts.error ? '—' : n0(live.alerts.data.filter((a) => a.severity === 'critical' || a.severity === 'high').length)} />
       </div>
       <Panel title="Ringkasan alert" sub="Dikelompokkan per tingkat dan status">
         <DataTable<[string, number]>
