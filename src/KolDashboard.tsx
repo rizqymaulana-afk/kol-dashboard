@@ -226,95 +226,54 @@ const short = (v: number) => {
   return String(v);
 };
 
-function Scatter({ rows, onPick }: { rows: Row[]; onPick: (id: string) => void }) {
-  const pts = rows.filter((r) => r.followers && r.views);
-  if (pts.length === 0) return <div className="empty">Belum ada KOL yang punya followers dan views.</div>;
-  const W = 640, H = 340, pl = 96, pr = 150, pt = 18, pb = 48;
-  const xs = pts.map((r) => r.followers as number);
-  const ys = pts.map((r) => r.views as number);
-  const x0 = Math.floor(Math.log10(Math.min(...xs)));
-  const x1 = Math.max(x0 + 1, Math.ceil(Math.log10(Math.max(...xs))));
-  const y0 = Math.floor(Math.log10(Math.min(...ys)));
-  const y1 = Math.max(y0 + 1, Math.ceil(Math.log10(Math.max(...ys))));
-  const sx = (f: number) => pl + (Math.log10(f) - x0) / (x1 - x0) * (W - pl - pr);
-  const sy = (v: number) => H - pb - (Math.log10(v) - y0) / (y1 - y0) * (H - pb - pt);
-  const ticksX = Array.from({ length: x1 - x0 + 1 }, (_, i) => 10 ** (x0 + i));
-  const ticksY = Array.from({ length: y1 - y0 + 1 }, (_, i) => 10 ** (y0 + i));
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Diagram sebar followers terhadap views">
-      {ticksX.map((t) => (
-        <g key={`x${t}`}>
-          <line x1={sx(t)} x2={sx(t)} y1={pt} y2={H - pb} stroke="#EDEEF2" strokeDasharray="3 4" />
-          <text x={sx(t)} y={H - pb + 20} textAnchor="middle" fontSize="11" fill="#6B7180">{short(t)}</text>
-        </g>
-      ))}
-      {ticksY.map((t) => (
-        <g key={`y${t}`}>
-          <line x1={pl} x2={W - pr} y1={sy(t)} y2={sy(t)} stroke="#EDEEF2" strokeDasharray="3 4" />
-          <text x={pl - 10} y={sy(t) + 4} textAnchor="end" fontSize="11" fill="#6B7180">{short(t)}</text>
-        </g>
-      ))}
-      <text x={(pl + W - pr) / 2} y={H - 6} textAnchor="middle" fontSize="12" fontWeight="600" fill="#6B7180">Followers (skala log)</text>
-      <text x={22} y={(pt + H - pb) / 2} transform={`rotate(-90 22 ${(pt + H - pb) / 2})`} textAnchor="middle" fontSize="12" fontWeight="600" fill="#6B7180">Views (skala log)</text>
-      {pts.map((r) => (
-        <g key={r.id} onClick={() => onPick(r.id)} style={{ cursor: 'pointer' }}>
-          <circle cx={sx(r.followers as number)} cy={sy(r.views as number)} r="8" fill="#7A2E4A" fillOpacity=".16" />
-          <circle cx={sx(r.followers as number)} cy={sy(r.views as number)} r="5" fill="#7A2E4A" stroke="#fff" strokeWidth="2" />
-          <text
-            x={sx(r.followers as number) + (sx(r.followers as number) > W - pr - 150 ? -12 : 12)}
-            y={sy(r.views as number) + 4}
-            textAnchor={sx(r.followers as number) > W - pr - 150 ? 'end' : 'start'}
-            fontSize="12" fontWeight="600" fill="#2A2E36"
-          >{r.name}</text>
-          <title>{`${r.name}: ${n0(r.followers)} followers, ${n0(r.views)} views`}</title>
-        </g>
-      ))}
-    </svg>
-  );
-}
-
 /* ---------- grafik garis ---------- */
-const monthLabel = (key: string) => {
-  const [y, mo] = key.split('-').map(Number);
-  return new Date(y, mo - 1, 1).toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
-};
-
-function LineChart({ points, format }: { points: { label: string; value: number }[]; format: (v: number) => string }) {
-  if (points.length < 2) return <div className="empty">Belum cukup data untuk tren. Dibutuhkan minimal 2 bulan publikasi.</div>;
-  const W = 640, H = 280, pl = 72, pr = 24, pt = 16, pb = 40;
-  const max = Math.max(...points.map((p) => p.value)) || 1;
-  const e = 10 ** Math.floor(Math.log10(max));
-  const yMax = Math.ceil(max / e) * e;
-  const n = points.length;
-  const sx = (i: number) => pl + (i * (W - pl - pr)) / (n - 1);
-  const sy = (v: number) => H - pb - (v / yMax) * (H - pb - pt);
-  const line = points.map((p, i) => `${i ? 'L' : 'M'}${sx(i).toFixed(1)},${sy(p.value).toFixed(1)}`).join(' ');
-  const area = `${line} L${sx(n - 1).toFixed(1)},${H - pb} L${sx(0).toFixed(1)},${H - pb} Z`;
-  const grid = [0, 0.25, 0.5, 0.75, 1].map((f) => f * yMax);
+function LineMulti({ labels, series, log }: { labels: string[]; series: { name: string; color: string; values: number[] }[]; log?: boolean }) {
+  if (labels.length < 2) return <div className="empty">Belum cukup data untuk grafik garis.</div>;
+  const W = 640, H = 340, pl = 84, pr = 20, pt = 14, pb = 84;
+  const all = series.flatMap((s) => s.values).filter((v) => v > 0);
+  const tf = (v: number) => (log ? Math.log10(Math.max(v, 1)) : v);
+  const ymin = log ? Math.floor(Math.log10(Math.max(1, Math.min(...all)))) : 0;
+  const ymax = log
+    ? Math.max(ymin + 1, Math.ceil(Math.log10(Math.max(...all))))
+    : (Math.max(...all) || 1) * 1.1;
+  const sy = (v: number) => H - pb - ((tf(v) - ymin) / (ymax - ymin)) * (H - pb - pt);
+  const sx = (i: number) => pl + (i * (W - pl - pr)) / (labels.length - 1);
+  const ticks = log
+    ? Array.from({ length: ymax - ymin + 1 }, (_, i) => 10 ** (ymin + i))
+    : [0, 0.25, 0.5, 0.75, 1].map((f) => f * ymax);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Grafik tren views per bulan">
-      <defs>
-        <linearGradient id="lineFill" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#7A2E4A" stopOpacity=".22" />
-          <stop offset="1" stopColor="#7A2E4A" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {grid.map((g) => (
-        <g key={g}>
-          <line x1={pl} x2={W - pr} y1={sy(g)} y2={sy(g)} stroke="#EDEEF2" strokeDasharray="3 4" />
-          <text x={pl - 10} y={sy(g) + 4} textAnchor="end" fontSize="11" fill="#6B7180">{format(g)}</text>
-        </g>
-      ))}
-      <path d={area} fill="url(#lineFill)" />
-      <path d={line} fill="none" stroke="#7A2E4A" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-      {points.map((p, i) => (
-        <g key={p.label + i}>
-          <circle cx={sx(i)} cy={sy(p.value)} r="5" fill="#fff" stroke="#7A2E4A" strokeWidth="2.5" />
-          <text x={sx(i)} y={H - pb + 20} textAnchor="middle" fontSize="11" fill="#6B7180">{p.label}</text>
-          <title>{`${p.label}: ${n0(p.value)} views`}</title>
-        </g>
-      ))}
-    </svg>
+    <div>
+      <div className="legend" style={{ justifyContent: 'flex-start', marginBottom: 8 }}>
+        {series.map((s) => (
+          <span key={s.name}><i className="dot" style={{ background: s.color }} />{s.name}</span>
+        ))}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Grafik garis followers dan views per KOL">
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={pl} x2={W - pr} y1={sy(t)} y2={sy(t)} stroke="#EDEEF2" strokeDasharray="3 4" />
+            <text x={pl - 10} y={sy(t) + 4} textAnchor="end" fontSize="11" fill="#6B7180">{short(t)}</text>
+          </g>
+        ))}
+        {labels.map((l, i) => (
+          <text key={`${l}${i}`} x={sx(i)} y={H - pb + 16} textAnchor="end" fontSize="11" fill="#6B7180"
+            transform={`rotate(-35 ${sx(i)} ${H - pb + 16})`}>{l}</text>
+        ))}
+        {series.map((s) => (
+          <g key={s.name}>
+            <path
+              d={s.values.map((v, i) => `${i ? 'L' : 'M'}${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join(' ')}
+              fill="none" stroke={s.color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"
+            />
+            {s.values.map((v, i) => (
+              <circle key={i} cx={sx(i)} cy={sy(v)} r="4.5" fill="#fff" stroke={s.color} strokeWidth="2.5">
+                <title>{`${labels[i]} · ${s.name}: ${n0(v)}`}</title>
+              </circle>
+            ))}
+          </g>
+        ))}
+      </svg>
+    </div>
   );
 }
 
@@ -447,6 +406,9 @@ function RingkasanView({ live, m, onPick }: { live: Live; m: Model; onPick: (id:
   const prospect = live.kols.data.filter((k) => k.status === 'prospect').length;
   const noSales = m.gmv === 0 && m.orders === 0;
   const maxF = m.followersTop[0]?.followers ?? 1;
+  const fv = m.rows
+    .filter((r) => r.followers != null && r.views != null)
+    .sort((a, b) => (a.followers ?? 0) - (b.followers ?? 0));
 
   return (
     <>
@@ -499,13 +461,16 @@ function RingkasanView({ live, m, onPick }: { live: Live; m: Model; onPick: (id:
         </Panel>
       </div>
 
-      <Panel title="Tren views per bulan" sub="berdasarkan tanggal publikasi konten">
-        <LineChart points={m.monthly.map((x) => ({ label: monthLabel(x.key), value: x.views }))} format={short} />
-      </Panel>
-
       <div className="grid eq">
-        <Panel title="Followers vs views" sub="Klik titik untuk detail KOL · skala log">
-          <Scatter rows={m.rows} onPick={onPick} />
+        <Panel title="Followers vs views" sub="Per KOL, diurutkan dari followers terkecil · skala log">
+          <LineMulti
+            labels={fv.map((r) => (r.name.length > 14 ? `${r.name.slice(0, 13)}…` : r.name))}
+            series={[
+              { name: 'Followers', color: '#7A2E4A', values: fv.map((r) => r.followers as number) },
+              { name: 'Views', color: '#C9953B', values: fv.map((r) => r.views as number) },
+            ]}
+            log
+          />
         </Panel>
         <Panel title="Catatan data" sub="Hal yang perlu dilengkapi">
           <div className="note-list">
